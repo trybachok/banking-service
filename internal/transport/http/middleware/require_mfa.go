@@ -1,5 +1,9 @@
-// banking-service/internal/transport/http/middleware/require_mfa.go
-
 package middleware
 
-type RequireMFA struct{}
+import "net/http"
+
+func RequireMFA() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return next
+	}
+}

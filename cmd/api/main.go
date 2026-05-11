@@ -1,13 +1,20 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 
+	authapp "github.com/example/banking-service/internal/application/auth"
 	"github.com/example/banking-service/internal/infrastructure/config"
+	appcrypto "github.com/example/banking-service/internal/infrastructure/crypto"
+	appdb "github.com/example/banking-service/internal/infrastructure/db"
+	appjwt "github.com/example/banking-service/internal/infrastructure/jwt"
 	"github.com/example/banking-service/internal/infrastructure/logger"
+	pgrepo "github.com/example/banking-service/internal/infrastructure/repository/postgres"
+	"github.com/example/banking-service/internal/transport/http/handlers"
+	"github.com/example/banking-service/internal/transport/http/router"
 )
 
 func main() {
@@ -25,36 +32,30 @@ func main() {
 
 	log.WithFields(cfg.SafeForLog()).Info("api bootstrap started")
 
-	mux := http.NewServeMux()
+	ctx := context.Background()
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"status":  "ok",
-			"service": "api",
-		})
-	})
+	postgres, err := appdb.Connect(ctx, cfg)
+	if err != nil {
+		log.WithError(err).Fatal("failed to connect to postgres")
+	}
+	defer postgres.Close()
 
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"status":  "ready",
-			"service": "api",
-		})
-	})
+	txManager := appdb.NewTxManager(postgres.DB)
+
+	userRepository := pgrepo.NewUserRepository(txManager)
+	passwordHasher := appcrypto.NewPasswordHasher()
+	jwtManager := appjwt.NewManager(cfg.JWTSecret, cfg.JWTTTLHours)
+
+	authService := authapp.NewService(userRepository, passwordHasher, jwtManager)
+	authHandler := handlers.NewAuthHandler(authService, log)
+
+	httpHandler := router.New(authHandler, jwtManager, log)
 
 	addr := ":" + cfg.AppPort
 
 	log.WithField("addr", addr).Info("api server listening")
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, httpHandler); err != nil {
 		log.WithError(err).Fatal("api server stopped")
-	}
-}
-
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		http.Error(w, `{"error":{"code":"internal_error","message":"failed to encode response"}}`, http.StatusInternalServerError)
 	}
 }
