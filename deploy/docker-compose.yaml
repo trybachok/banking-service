@@ -16,6 +16,26 @@ services:
       timeout: 5s
       retries: 10
 
+  migrator:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_CMD: migrate
+    container_name: banking-migrator
+    env_file:
+      - ../.env.example
+    environment:
+      DATABASE_URL: postgres://banking_user:banking_password@postgres:5432/banking_service?sslmode=disable
+      LOG_LEVEL: debug
+    volumes:
+      - ../migrations:/app/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools
+
   api:
     build:
       context: ..

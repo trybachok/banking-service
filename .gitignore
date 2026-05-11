@@ -28,3 +28,4 @@ summary.md
 # Go build artifacts
 /api
 /scheduler
+/migrate
