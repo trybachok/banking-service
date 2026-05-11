@@ -1,0 +1,25 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Coverage
+coverage.out
+
+# Environment
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+summary.md
