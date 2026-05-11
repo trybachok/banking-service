@@ -18,6 +18,7 @@ func New(
 	transferHandler *handlers.TransferHandler,
 	cardHandler *handlers.CardHandler,
 	creditHandler *handlers.CreditHandler,
+	analyticsHandler *handlers.AnalyticsHandler,
 	jwtManager *jwt.Manager,
 	log *logrus.Logger,
 ) http.Handler {
@@ -42,6 +43,7 @@ func New(
 	protected.HandleFunc("/accounts", accountHandler.List).Methods(http.MethodGet)
 	protected.HandleFunc("/accounts/{accountId}/deposit", accountHandler.Deposit).Methods(http.MethodPost)
 	protected.HandleFunc("/accounts/{accountId}/withdraw", accountHandler.Withdraw).Methods(http.MethodPost)
+	protected.HandleFunc("/accounts/{accountId}/predict", analyticsHandler.PredictBalance).Methods(http.MethodGet)
 
 	protected.HandleFunc("/transfer", transferHandler.Transfer).Methods(http.MethodPost)
 
@@ -53,6 +55,8 @@ func New(
 	protected.HandleFunc("/credits", creditHandler.Issue).Methods(http.MethodPost)
 	protected.HandleFunc("/credits", creditHandler.List).Methods(http.MethodGet)
 	protected.HandleFunc("/credits/{creditId}/schedule", creditHandler.Schedule).Methods(http.MethodGet)
+
+	protected.HandleFunc("/analytics", analyticsHandler.GetAnalytics).Methods(http.MethodGet)
 
 	return r
 }

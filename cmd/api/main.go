@@ -7,6 +7,7 @@ import (
 	"os"
 
 	accountapp "github.com/example/banking-service/internal/application/accounts"
+	analyticsapp "github.com/example/banking-service/internal/application/analytics"
 	authapp "github.com/example/banking-service/internal/application/auth"
 	cardapp "github.com/example/banking-service/internal/application/cards"
 	creditapp "github.com/example/banking-service/internal/application/credits"
@@ -64,14 +65,25 @@ func main() {
 	transferService := transferapp.NewService(txManager, accountRepository, transactionRepository)
 	cardService := cardapp.NewService(txManager, accountRepository, cardRepository, transactionRepository, cardProtector)
 	creditService := creditapp.NewService(txManager, accountRepository, creditRepository, scheduleRepository, transactionRepository, cbrClient)
+	analyticsService := analyticsapp.NewService(accountRepository, transactionRepository, creditRepository, scheduleRepository)
 
 	authHandler := handlers.NewAuthHandler(authService, log)
 	accountHandler := handlers.NewAccountHandler(accountService, log)
 	transferHandler := handlers.NewTransferHandler(transferService, log)
 	cardHandler := handlers.NewCardHandler(cardService, log)
 	creditHandler := handlers.NewCreditHandler(creditService, log)
+	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, log)
 
-	httpHandler := router.New(authHandler, accountHandler, transferHandler, cardHandler, creditHandler, jwtManager, log)
+	httpHandler := router.New(
+		authHandler,
+		accountHandler,
+		transferHandler,
+		cardHandler,
+		creditHandler,
+		analyticsHandler,
+		jwtManager,
+		log,
+	)
 
 	addr := ":" + cfg.AppPort
 
