@@ -16,6 +16,13 @@ services:
       timeout: 5s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: banking-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   migrator:
     build:
       context: ..
@@ -49,11 +56,16 @@ services:
       DATABASE_URL: postgres://banking_user:banking_password@postgres:5432/banking_service?sslmode=disable
       APP_PORT: 8080
       LOG_LEVEL: debug
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: no-reply@banking.local
     ports:
       - "8085:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   scheduler:
     build:
@@ -67,9 +79,15 @@ services:
     environment:
       DATABASE_URL: postgres://banking_user:banking_password@postgres:5432/banking_service?sslmode=disable
       LOG_LEVEL: debug
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: no-reply@banking.local
+      SCHEDULER_INTERVAL_HOURS: 12
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
 volumes:
   banking_postgres_data:

@@ -112,7 +112,10 @@ func (r *EmailOutboxRepository) MarkSent(ctx context.Context, id string, sentAt 
 func (r *EmailOutboxRepository) MarkFailed(ctx context.Context, id string, nextAttemptAt time.Time, lastError string) error {
 	query := `
 		UPDATE email_outbox
-		SET status = 'failed',
+		SET status = CASE
+		        WHEN attempts + 1 >= 3 THEN 'failed'
+		        ELSE 'pending'
+		    END,
 		    attempts = attempts + 1,
 		    next_attempt_at = $2,
 		    last_error = $3

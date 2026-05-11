@@ -1,453 +1,363 @@
 openapi: 3.0.3
+
 info:
   title: Banking Service API
   version: 1.0.0
-  description: REST API банковского сервиса на Go
+  description: REST API банковского сервиса на Go.
+
 servers:
-  - url: https://api.example.local
+  - url: http://localhost:8085
+    description: Local Docker environment
+
 security:
   - bearerAuth: []
 
 paths:
-  /auth/register:
-    post:
-      tags: [Auth]
+  /health:
+    get:
+      summary: Health check
       security: []
-      summary: Регистрация пользователя
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        '201':
-          description: Пользователь зарегистрирован
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserResponse'
-        '409':
-          description: Email или username уже заняты
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        "200":
+          description: Service is alive
 
-  /auth/login:
-    post:
-      tags: [Auth]
+  /ready:
+    get:
+      summary: Readiness check
       security: []
-      summary: Аутентификация пользователя
+      responses:
+        "200":
+          description: Service is ready
+
+  /register:
+    post:
+      summary: Register user
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        '200':
-          description: JWT выдан
+        "201":
+          description: User registered
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '401':
-          description: Неверные учётные данные
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /login:
+    post:
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: User authenticated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me:
+    get:
+      summary: Current authenticated user
+      responses:
+        "200":
+          description: Current user identity
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /accounts:
-    get:
-      tags: [Accounts]
-      summary: Список счетов текущего пользователя
-      responses:
-        '200':
-          description: Список счетов
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Account'
     post:
-      tags: [Accounts]
-      summary: Создать счёт
+      summary: Create account
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAccountRequest'
+              $ref: "#/components/schemas/CreateAccountRequest"
       responses:
-        '201':
-          description: Счет создан
+        "201":
+          description: Account created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
-        '403':
-          description: Операция запрещена
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/AccountResponse"
 
-  /accounts/{accountId}:
     get:
-      tags: [Accounts]
-      summary: Получить счёт по ID
-      parameters:
-        - $ref: '#/components/parameters/AccountId'
+      summary: List current user accounts
       responses:
-        '200':
-          description: Данные счета
+        "200":
+          description: Account list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
-        '404':
-          description: Счёт не найден
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/AccountListResponse"
 
-  /accounts/{accountId}/deposits:
+  /accounts/{accountId}/deposit:
     post:
-      tags: [Accounts]
-      summary: Пополнить счёт
+      summary: Deposit money to account
       parameters:
-        - $ref: '#/components/parameters/AccountId'
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: "#/components/parameters/AccountId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AmountRequest'
+              $ref: "#/components/schemas/MoneyOperationRequest"
       responses:
-        '200':
-          description: Баланс обновлён
+        "200":
+          description: Deposit completed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: "#/components/schemas/AccountOperationResponse"
 
-  /accounts/{accountId}/withdrawals:
+  /accounts/{accountId}/withdraw:
     post:
-      tags: [Accounts]
-      summary: Списать средства со счёта
+      summary: Withdraw money from account
       parameters:
-        - $ref: '#/components/parameters/AccountId'
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: "#/components/parameters/AccountId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AmountRequest'
+              $ref: "#/components/schemas/MoneyOperationRequest"
       responses:
-        '200':
-          description: Баланс обновлён
+        "200":
+          description: Withdrawal completed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
-        '409':
-          description: Недостаточно средств
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /transfers:
-    post:
-      tags: [Transfers]
-      summary: Перевод между счетами
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TransferRequest'
-      responses:
-        '201':
-          description: Перевод выполнен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-        '409':
-          description: Конфликт баланса или идемпотентности
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /cards:
-    get:
-      tags: [Cards]
-      summary: Список карт пользователя
-      responses:
-        '200':
-          description: Карты
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Card'
-    post:
-      tags: [Cards]
-      summary: Выпустить виртуальную карту
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/IssueCardRequest'
-      responses:
-        '201':
-          description: Карта создана
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CardRevealResponse'
-
-  /cards/{cardId}:
-    get:
-      tags: [Cards]
-      summary: Просмотреть карту с расшифровкой для владельца
-      parameters:
-        - $ref: '#/components/parameters/CardId'
-      responses:
-        '200':
-          description: Данные карты
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CardRevealResponse'
-        '403':
-          description: Доступ запрещён
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /cards/{cardId}/payments:
-    post:
-      tags: [Cards]
-      summary: Оплата картой
-      parameters:
-        - $ref: '#/components/parameters/CardId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CardPaymentRequest'
-      responses:
-        '201':
-          description: Платёж выполнен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-
-  /credits:
-    post:
-      tags: [Credits]
-      summary: Оформить кредит
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateCreditRequest'
-      responses:
-        '201':
-          description: Кредит оформлен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Credit'
-    get:
-      tags: [Credits]
-      summary: Список кредитов пользователя
-      responses:
-        '200':
-          description: Кредиты
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Credit'
-
-  /credits/{creditId}/schedule:
-    get:
-      tags: [Credits]
-      summary: Получить график платежей
-      parameters:
-        - $ref: '#/components/parameters/CreditId'
-      responses:
-        '200':
-          description: График платежей
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  credit_id:
-                    type: string
-                    format: uuid
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/PaymentScheduleItem'
-
-  /analytics:
-    get:
-      tags: [Analytics]
-      summary: Аналитика за месяц
-      parameters:
-        - in: query
-          name: month
-          required: false
-          schema:
-            type: string
-            example: "2026-05"
-      responses:
-        '200':
-          description: Агрегированная аналитика
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AnalyticsResponse'
+                $ref: "#/components/schemas/AccountOperationResponse"
 
   /accounts/{accountId}/predict:
     get:
-      tags: [Analytics]
-      summary: Прогноз баланса на N дней
+      summary: Predict account balance
       parameters:
-        - $ref: '#/components/parameters/AccountId'
-        - in: query
-          name: days
-          required: true
+        - $ref: "#/components/parameters/AccountId"
+        - name: days
+          in: query
+          required: false
           schema:
             type: integer
             minimum: 1
             maximum: 365
+            default: 30
       responses:
-        '200':
-          description: Прогноз баланса
+        "200":
+          description: Balance prediction
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BalanceForecastResponse'
+                $ref: "#/components/schemas/BalancePredictionResponse"
+
+  /transfer:
+    post:
+      summary: Transfer money between accounts
+      parameters:
+        - $ref: "#/components/parameters/MFAChallengeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: Transfer completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /cards:
+    post:
+      summary: Issue virtual card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCardRequest"
+      responses:
+        "201":
+          description: Card issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDetailsResponse"
+
+    get:
+      summary: List user cards
+      responses:
+        "200":
+          description: Card list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardListResponse"
+
+  /cards/{cardId}:
+    get:
+      summary: Get card details
+      parameters:
+        - $ref: "#/components/parameters/CardId"
+      responses:
+        "200":
+          description: Card details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDetailsResponse"
+
+  /cards/{cardId}/pay:
+    post:
+      summary: Pay by card
+      parameters:
+        - $ref: "#/components/parameters/CardId"
+        - $ref: "#/components/parameters/MFAChallengeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardPaymentRequest"
+      responses:
+        "200":
+          description: Card payment completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPaymentResponse"
+
+  /credits:
+    post:
+      summary: Issue credit
+      parameters:
+        - $ref: "#/components/parameters/MFAChallengeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCreditRequest"
+      responses:
+        "201":
+          description: Credit issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueCreditResponse"
+
+    get:
+      summary: List credits
+      responses:
+        "200":
+          description: Credit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditListResponse"
+
+  /credits/{creditId}/schedule:
+    get:
+      summary: Get credit payment schedule
+      parameters:
+        - $ref: "#/components/parameters/CreditId"
+      responses:
+        "200":
+          description: Credit schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentScheduleListResponse"
+
+  /analytics:
+    get:
+      summary: Get financial analytics
+      responses:
+        "200":
+          description: Analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsResponse"
 
   /mfa/challenges:
     post:
-      tags: [MFA]
-      summary: Создать 2FA challenge для критической операции
+      summary: Create MFA challenge
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMfaChallengeRequest'
+              $ref: "#/components/schemas/CreateMFAChallengeRequest"
       responses:
-        '201':
-          description: Challenge создан
+        "201":
+          description: MFA challenge created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MfaChallengeResponse'
+                $ref: "#/components/schemas/MFAChallengeResponse"
 
   /mfa/challenges/{challengeId}/verify:
     post:
-      tags: [MFA]
-      summary: Подтвердить 2FA challenge
+      summary: Verify MFA challenge
       parameters:
-        - in: path
-          name: challengeId
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/ChallengeId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyMfaChallengeRequest'
+              $ref: "#/components/schemas/VerifyMFAChallengeRequest"
       responses:
-        '200':
-          description: Challenge подтвержден
+        "200":
+          description: MFA challenge verified
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MfaChallengeResponse'
+                $ref: "#/components/schemas/MFAChallengeResponse"
 
   /admin/users:
     get:
-      tags: [Admin]
-      summary: Список пользователей
+      summary: Admin list users
       responses:
-        '200':
-          description: Пользователи
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UserResponse'
+        "200":
+          description: User list
 
   /admin/accounts/{accountId}/block:
     post:
-      tags: [Admin]
-      summary: Заблокировать счёт
+      summary: Admin block account
       parameters:
-        - $ref: '#/components/parameters/AccountId'
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/MFAChallengeHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [reason]
-              properties:
-                reason:
-                  type: string
+              $ref: "#/components/schemas/BlockAccountRequest"
       responses:
-        '200':
-          description: Счёт заблокирован
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
+        "200":
+          description: Account blocked
 
 components:
   securitySchemes:
@@ -458,57 +368,74 @@ components:
 
   parameters:
     AccountId:
-      in: path
       name: accountId
+      in: path
       required: true
       schema:
         type: string
         format: uuid
+
     CardId:
-      in: path
       name: cardId
-      required: true
-      schema:
-        type: string
-        format: uuid
-    CreditId:
       in: path
-      name: creditId
       required: true
       schema:
         type: string
         format: uuid
-    IdempotencyKey:
-      in: header
-      name: Idempotency-Key
-      required: false
+
+    CreditId:
+      name: creditId
+      in: path
+      required: true
       schema:
         type: string
-        maxLength: 128
+        format: uuid
+
+    ChallengeId:
+      name: challengeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    MFAChallengeHeader:
+      name: X-MFA-Challenge-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
-    ErrorResponse:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: object
-          required: [code, message, request_id]
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-            request_id:
-              type: string
-              format: uuid
-            details:
-              type: object
-              additionalProperties: true
-
     RegisterRequest:
       type: object
-      required: [email, username, password]
+      required:
+        - email
+        - username
+        - password
       properties:
         email:
           type: string
@@ -520,36 +447,38 @@ components:
         password:
           type: string
           minLength: 8
-          maxLength: 72
-        first_name:
+        firstName:
           type: string
-        last_name:
+        lastName:
           type: string
 
     LoginRequest:
       type: object
-      required: [login, password]
+      required:
+        - email
+        - password
       properties:
-        login:
+        email:
           type: string
-          description: email или username
+          format: email
         password:
           type: string
 
     AuthResponse:
       type: object
-      required: [access_token, token_type, expires_in, user]
       properties:
-        access_token:
+        accessToken:
           type: string
-        token_type:
+        tokenType:
           type: string
           example: Bearer
-        expires_in:
+        expiresAt:
+          type: string
+          format: date-time
+        expiresInSeconds:
           type: integer
-          example: 86400
         user:
-          $ref: '#/components/schemas/UserResponse'
+          $ref: "#/components/schemas/UserResponse"
 
     UserResponse:
       type: object
@@ -559,214 +488,102 @@ components:
           format: uuid
         email:
           type: string
-          format: email
         username:
           type: string
         role:
           type: string
+          enum:
+            - customer
+            - admin
         status:
           type: string
-        created_at:
-          type: string
-          format: date-time
+          enum:
+            - active
+            - blocked
+            - deleted
 
     CreateAccountRequest:
       type: object
       properties:
-        account_type:
+        accountType:
           type: string
-          enum: [current, credit_repayment]
-      required: [account_type]
+          enum:
+            - current
+            - credit_repayment
 
-    Account:
+    MoneyOperationRequest:
       type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        account_no:
-          type: string
-        account_type:
-          type: string
-        currency:
-          type: string
-          example: RUB
-        balance:
-          type: string
-          example: "15000.25"
-        status:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-
-    AmountRequest:
-      type: object
-      required: [amount]
+      required:
+        - amount
       properties:
         amount:
           type: string
           example: "1000.00"
         description:
           type: string
-        mfa_challenge_id:
-          type: string
-          format: uuid
-
-    TransferRequest:
-      type: object
-      required: [source_account_id, destination_account_id, amount]
-      properties:
-        source_account_id:
-          type: string
-          format: uuid
-        destination_account_id:
-          type: string
-          format: uuid
-        amount:
-          type: string
-          example: "500.00"
-        description:
-          type: string
-        mfa_challenge_id:
-          type: string
-          format: uuid
-
-    IssueCardRequest:
-      type: object
-      required: [account_id, card_alias]
-      properties:
-        account_id:
-          type: string
-          format: uuid
-        card_alias:
+        idempotencyKey:
           type: string
 
-    Card:
+    AccountResponse:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        account_id:
+        userId:
           type: string
           format: uuid
-        card_alias:
+        accountNo:
           type: string
-        pan_masked:
+        accountType:
           type: string
-        pan_last4:
+        currency:
+          type: string
+          enum:
+            - RUB
+        balance:
           type: string
         status:
           type: string
-        created_at:
+        blockedReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
 
-    CardRevealResponse:
-      allOf:
-        - $ref: '#/components/schemas/Card'
-        - type: object
-          properties:
-            pan:
-              type: string
-            expiry:
-              type: string
-              example: "12/29"
-            cvv:
-              type: string
-              writeOnly: true
-
-    CardPaymentRequest:
+    AccountListResponse:
       type: object
-      required: [amount]
       properties:
-        amount:
-          type: string
-          example: "350.00"
-        description:
-          type: string
-        mfa_challenge_id:
-          type: string
-          format: uuid
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountResponse"
 
-    CreateCreditRequest:
-      type: object
-      required: [disbursement_account_id, repayment_account_id, principal_amount, term_months]
-      properties:
-        disbursement_account_id:
-          type: string
-          format: uuid
-        repayment_account_id:
-          type: string
-          format: uuid
-        principal_amount:
-          type: string
-          example: "100000.00"
-        term_months:
-          type: integer
-          minimum: 1
-        bank_margin:
-          type: string
-          example: "4.50"
-        mfa_challenge_id:
-          type: string
-          format: uuid
-
-    Credit:
+    TransactionResponse:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        principal_amount:
-          type: string
-        outstanding_principal:
-          type: string
-        annual_interest_rate:
-          type: string
-        cbr_key_rate:
-          type: string
-        bank_margin:
-          type: string
-        term_months:
-          type: integer
-        annuity_payment:
-          type: string
-        status:
-          type: string
-        issued_at:
-          type: string
-          format: date-time
-
-    PaymentScheduleItem:
-      type: object
-      properties:
-        installment_no:
-          type: integer
-        due_date:
-          type: string
-          format: date
-        principal_amount:
-          type: string
-        interest_amount:
-          type: string
-        penalty_amount:
-          type: string
-        total_amount:
-          type: string
-        paid_amount:
-          type: string
-        status:
-          type: string
-
-    Transaction:
-      type: object
-      properties:
-        id:
+        userId:
           type: string
           format: uuid
-        operation_type:
+        sourceAccountId:
+          type: string
+          format: uuid
+        destinationAccountId:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        creditId:
+          type: string
+          format: uuid
+        operationType:
           type: string
         status:
           type: string
@@ -774,79 +591,273 @@ components:
           type: string
         currency:
           type: string
-        source_account_id:
-          type: string
-          format: uuid
-        destination_account_id:
-          type: string
-          format: uuid
-        created_at:
+        createdAt:
           type: string
           format: date-time
+
+    AccountOperationResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountResponse"
+        transaction:
+          $ref: "#/components/schemas/TransactionResponse"
+
+    TransferRequest:
+      type: object
+      required:
+        - sourceAccountId
+        - destinationAccountId
+        - amount
+      properties:
+        sourceAccountId:
+          type: string
+          format: uuid
+        destinationAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        description:
+          type: string
+        idempotencyKey:
+          type: string
+
+    TransferResponse:
+      type: object
+      properties:
+        sourceAccount:
+          $ref: "#/components/schemas/AccountResponse"
+        destinationAccount:
+          $ref: "#/components/schemas/AccountResponse"
+        transaction:
+          $ref: "#/components/schemas/TransactionResponse"
+
+    IssueCardRequest:
+      type: object
+      required:
+        - accountId
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        alias:
+          type: string
+
+    CardPaymentRequest:
+      type: object
+      required:
+        - amount
+        - cvv
+      properties:
+        amount:
+          type: string
+        cvv:
+          type: string
+          minLength: 3
+          maxLength: 3
+        description:
+          type: string
+        idempotencyKey:
+          type: string
+
+    CardResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        alias:
+          type: string
+        panMasked:
+          type: string
+        panLast4:
+          type: string
+        status:
+          type: string
+
+    CardDetailsResponse:
+      type: object
+      properties:
+        card:
+          $ref: "#/components/schemas/CardResponse"
+        pan:
+          type: string
+        expiry:
+          type: string
+        cvv:
+          type: string
+        notice:
+          type: string
+
+    CardListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardResponse"
+
+    CardPaymentResponse:
+      type: object
+      properties:
+        card:
+          $ref: "#/components/schemas/CardResponse"
+        account:
+          $ref: "#/components/schemas/AccountResponse"
+        transaction:
+          $ref: "#/components/schemas/TransactionResponse"
+
+    IssueCreditRequest:
+      type: object
+      required:
+        - disbursementAccountId
+        - repaymentAccountId
+        - principalAmount
+        - termMonths
+      properties:
+        disbursementAccountId:
+          type: string
+          format: uuid
+        repaymentAccountId:
+          type: string
+          format: uuid
+        principalAmount:
+          type: string
+        termMonths:
+          type: integer
+          minimum: 1
+        bankMargin:
+          type: string
+
+    CreditResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        principalAmount:
+          type: string
+        outstandingPrincipal:
+          type: string
+        annualInterestRate:
+          type: string
+        cbrKeyRate:
+          type: string
+        termMonths:
+          type: integer
+        annuityPayment:
+          type: string
+        status:
+          type: string
+
+    PaymentScheduleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        creditId:
+          type: string
+          format: uuid
+        installmentNo:
+          type: integer
+        dueDate:
+          type: string
+          format: date-time
+        totalAmount:
+          type: string
+        paidAmount:
+          type: string
+        status:
+          type: string
+
+    IssueCreditResponse:
+      type: object
+      properties:
+        credit:
+          $ref: "#/components/schemas/CreditResponse"
+        schedule:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentScheduleResponse"
+
+    CreditListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreditResponse"
+
+    PaymentScheduleListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentScheduleResponse"
 
     AnalyticsResponse:
       type: object
       properties:
-        month:
-          type: string
-          example: "2026-05"
-        total_income:
-          type: string
-        total_expense:
-          type: string
-        net_cashflow:
-          type: string
-        monthly_credit_payment:
-          type: string
-        outstanding_credit_principal:
-          type: string
-        overdue_payments_count:
-          type: integer
+        monthly:
+          type: object
+        creditLoad:
+          type: object
 
-    BalanceForecastResponse:
+    BalancePredictionResponse:
       type: object
       properties:
-        account_id:
+        accountId:
           type: string
           format: uuid
-        horizon_days:
+        days:
           type: integer
-        current_balance:
+        currentBalance:
           type: string
-        predicted_balance:
+        predictedBalance:
           type: string
-        timeline:
+        plannedPayments:
+          type: string
+        items:
           type: array
           items:
             type: object
-            properties:
-              date:
-                type: string
-                format: date
-              balance:
-                type: string
 
-    CreateMfaChallengeRequest:
+    CreateMFAChallengeRequest:
       type: object
-      required: [purpose]
+      required:
+        - purpose
       properties:
         purpose:
           type: string
-          enum: [transfer, card_payment, credit_issue, account_block]
+          enum:
+            - transfer
+            - card_payment
+            - credit_issue
+            - account_block
         context:
           type: object
           additionalProperties: true
 
-    VerifyMfaChallengeRequest:
+    VerifyMFAChallengeRequest:
       type: object
-      required: [code]
+      required:
+        - code
       properties:
         code:
           type: string
-          minLength: 4
-          maxLength: 12
+          minLength: 6
+          maxLength: 6
 
-    MfaChallengeResponse:
+    MFAChallengeResponse:
       type: object
       properties:
         id:
@@ -856,6 +867,23 @@ components:
           type: string
         status:
           type: string
-        expires_at:
+        expiresAt:
           type: string
           format: date-time
+
+    BlockAccountRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string

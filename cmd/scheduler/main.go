@@ -9,9 +9,11 @@ import (
 	"time"
 
 	creditapp "github.com/example/banking-service/internal/application/credits"
+	notificationapp "github.com/example/banking-service/internal/application/notifications"
 	"github.com/example/banking-service/internal/infrastructure/cbr"
 	"github.com/example/banking-service/internal/infrastructure/config"
 	appdb "github.com/example/banking-service/internal/infrastructure/db"
+	"github.com/example/banking-service/internal/infrastructure/email"
 	"github.com/example/banking-service/internal/infrastructure/logger"
 	pgrepo "github.com/example/banking-service/internal/infrastructure/repository/postgres"
 
@@ -48,17 +50,40 @@ func main() {
 	creditRepository := pgrepo.NewCreditRepository(txManager)
 	scheduleRepository := pgrepo.NewPaymentScheduleRepository(txManager)
 	transactionRepository := pgrepo.NewTransactionRepository(txManager)
+	emailOutboxRepository := pgrepo.NewEmailOutboxRepository(txManager)
+
 	cbrClient := cbr.NewClient(cfg.CBRSoapURL)
 
-	creditService := creditapp.NewService(txManager, accountRepository, creditRepository, scheduleRepository, transactionRepository, cbrClient)
+	smtpSender, err := email.NewSMTPSender(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUser,
+		cfg.SMTPPassword,
+		cfg.SMTPFrom,
+	)
+	if err != nil {
+		log.WithError(err).Fatal("failed to initialize smtp sender")
+	}
+
+	creditService := creditapp.NewService(
+		txManager,
+		accountRepository,
+		creditRepository,
+		scheduleRepository,
+		transactionRepository,
+		cbrClient,
+	)
+
+	notificationService := notificationapp.NewService(emailOutboxRepository, smtpSender)
 
 	interval := time.Duration(cfg.SchedulerIntervalHours) * time.Hour
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	log.WithField("interval", interval.String()).Info("credit payment scheduler started")
+	log.WithField("interval", interval.String()).Info("scheduler started")
 
 	runCreditPaymentJob(ctx, log, creditService)
+	runEmailOutboxJob(ctx, log, notificationService)
 
 	for {
 		select {
@@ -67,6 +92,7 @@ func main() {
 			return
 		case <-ticker.C:
 			runCreditPaymentJob(ctx, log, creditService)
+			runEmailOutboxJob(ctx, log, notificationService)
 		}
 	}
 }
@@ -84,4 +110,18 @@ func runCreditPaymentJob(ctx context.Context, log *logrus.Logger, service *credi
 		"penalized": result.Penalized,
 		"failed":    result.Failed,
 	}).Info("credit payment scheduler job completed")
+}
+
+func runEmailOutboxJob(ctx context.Context, log *logrus.Logger, service *notificationapp.Service) {
+	result, err := service.ProcessPending(ctx, time.Now().UTC(), 100)
+	if err != nil {
+		log.WithError(err).Error("email outbox scheduler job failed")
+		return
+	}
+
+	log.WithFields(logrus.Fields{
+		"processed": result.Processed,
+		"sent":      result.Sent,
+		"failed":    result.Failed,
+	}).Info("email outbox scheduler job completed")
 }
