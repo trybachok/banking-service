@@ -16,6 +16,7 @@ func New(
 	authHandler *handlers.AuthHandler,
 	accountHandler *handlers.AccountHandler,
 	transferHandler *handlers.TransferHandler,
+	cardHandler *handlers.CardHandler,
 	jwtManager *jwt.Manager,
 	log *logrus.Logger,
 ) http.Handler {
@@ -42,6 +43,11 @@ func New(
 	protected.HandleFunc("/accounts/{accountId}/withdraw", accountHandler.Withdraw).Methods(http.MethodPost)
 
 	protected.HandleFunc("/transfer", transferHandler.Transfer).Methods(http.MethodPost)
+
+	protected.HandleFunc("/cards", cardHandler.Issue).Methods(http.MethodPost)
+	protected.HandleFunc("/cards", cardHandler.List).Methods(http.MethodGet)
+	protected.HandleFunc("/cards/{cardId}", cardHandler.Details).Methods(http.MethodGet)
+	protected.HandleFunc("/cards/{cardId}/pay", cardHandler.Pay).Methods(http.MethodPost)
 
 	return r
 }
