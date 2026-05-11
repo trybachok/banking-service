@@ -15,6 +15,7 @@ coverage.out
 # Environment
 .env
 .env.*
+!.env.example
 
 # Editor
 .idea/
