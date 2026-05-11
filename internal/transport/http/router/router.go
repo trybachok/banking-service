@@ -14,6 +14,8 @@ import (
 
 func New(
 	authHandler *handlers.AuthHandler,
+	accountHandler *handlers.AccountHandler,
+	transferHandler *handlers.TransferHandler,
 	jwtManager *jwt.Manager,
 	log *logrus.Logger,
 ) http.Handler {
@@ -31,7 +33,15 @@ func New(
 
 	protected := r.PathPrefix("").Subrouter()
 	protected.Use(middleware.Auth(jwtManager))
+
 	protected.HandleFunc("/me", meHandler).Methods(http.MethodGet)
+
+	protected.HandleFunc("/accounts", accountHandler.Create).Methods(http.MethodPost)
+	protected.HandleFunc("/accounts", accountHandler.List).Methods(http.MethodGet)
+	protected.HandleFunc("/accounts/{accountId}/deposit", accountHandler.Deposit).Methods(http.MethodPost)
+	protected.HandleFunc("/accounts/{accountId}/withdraw", accountHandler.Withdraw).Methods(http.MethodPost)
+
+	protected.HandleFunc("/transfer", transferHandler.Transfer).Methods(http.MethodPost)
 
 	return r
 }

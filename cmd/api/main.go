@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 
+	accountapp "github.com/example/banking-service/internal/application/accounts"
 	authapp "github.com/example/banking-service/internal/application/auth"
+	transferapp "github.com/example/banking-service/internal/application/transfers"
 	"github.com/example/banking-service/internal/infrastructure/config"
 	appcrypto "github.com/example/banking-service/internal/infrastructure/crypto"
 	appdb "github.com/example/banking-service/internal/infrastructure/db"
@@ -43,13 +45,21 @@ func main() {
 	txManager := appdb.NewTxManager(postgres.DB)
 
 	userRepository := pgrepo.NewUserRepository(txManager)
+	accountRepository := pgrepo.NewAccountRepository(txManager)
+	transactionRepository := pgrepo.NewTransactionRepository(txManager)
+
 	passwordHasher := appcrypto.NewPasswordHasher()
 	jwtManager := appjwt.NewManager(cfg.JWTSecret, cfg.JWTTTLHours)
 
 	authService := authapp.NewService(userRepository, passwordHasher, jwtManager)
-	authHandler := handlers.NewAuthHandler(authService, log)
+	accountService := accountapp.NewService(txManager, accountRepository, transactionRepository)
+	transferService := transferapp.NewService(txManager, accountRepository, transactionRepository)
 
-	httpHandler := router.New(authHandler, jwtManager, log)
+	authHandler := handlers.NewAuthHandler(authService, log)
+	accountHandler := handlers.NewAccountHandler(accountService, log)
+	transferHandler := handlers.NewTransferHandler(transferService, log)
+
+	httpHandler := router.New(authHandler, accountHandler, transferHandler, jwtManager, log)
 
 	addr := ":" + cfg.AppPort
 
