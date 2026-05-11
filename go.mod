@@ -8,6 +8,6 @@ require (
 )
 
 require (
-	github.com/lib/pq v1.10.9 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	golang.org/x/sys v0.44.0 // indirect
 )
