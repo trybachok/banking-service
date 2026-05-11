@@ -7,10 +7,12 @@ import (
 	"os"
 
 	accountapp "github.com/example/banking-service/internal/application/accounts"
+	adminapp "github.com/example/banking-service/internal/application/admin"
 	analyticsapp "github.com/example/banking-service/internal/application/analytics"
 	authapp "github.com/example/banking-service/internal/application/auth"
 	cardapp "github.com/example/banking-service/internal/application/cards"
 	creditapp "github.com/example/banking-service/internal/application/credits"
+	mfaapp "github.com/example/banking-service/internal/application/mfa"
 	transferapp "github.com/example/banking-service/internal/application/transfers"
 	"github.com/example/banking-service/internal/infrastructure/cbr"
 	"github.com/example/banking-service/internal/infrastructure/config"
@@ -54,6 +56,8 @@ func main() {
 	cardRepository := pgrepo.NewCardRepository(txManager)
 	creditRepository := pgrepo.NewCreditRepository(txManager)
 	scheduleRepository := pgrepo.NewPaymentScheduleRepository(txManager)
+	mfaRepository := pgrepo.NewMFARepository(txManager)
+	emailOutboxRepository := pgrepo.NewEmailOutboxRepository(txManager)
 
 	passwordHasher := appcrypto.NewPasswordHasher()
 	jwtManager := appjwt.NewManager(cfg.JWTSecret, cfg.JWTTTLHours)
@@ -66,6 +70,8 @@ func main() {
 	cardService := cardapp.NewService(txManager, accountRepository, cardRepository, transactionRepository, cardProtector)
 	creditService := creditapp.NewService(txManager, accountRepository, creditRepository, scheduleRepository, transactionRepository, cbrClient)
 	analyticsService := analyticsapp.NewService(accountRepository, transactionRepository, creditRepository, scheduleRepository)
+	mfaService := mfaapp.NewService(userRepository, mfaRepository, emailOutboxRepository, passwordHasher)
+	adminService := adminapp.NewService(userRepository, accountRepository)
 
 	authHandler := handlers.NewAuthHandler(authService, log)
 	accountHandler := handlers.NewAccountHandler(accountService, log)
@@ -73,6 +79,8 @@ func main() {
 	cardHandler := handlers.NewCardHandler(cardService, log)
 	creditHandler := handlers.NewCreditHandler(creditService, log)
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, log)
+	mfaHandler := handlers.NewMFAHandler(mfaService, log)
+	adminHandler := handlers.NewAdminHandler(adminService, log)
 
 	httpHandler := router.New(
 		authHandler,
@@ -81,6 +89,9 @@ func main() {
 		cardHandler,
 		creditHandler,
 		analyticsHandler,
+		mfaHandler,
+		adminHandler,
+		mfaService,
 		jwtManager,
 		log,
 	)

@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/example/banking-service/internal/domain"
 	"github.com/example/banking-service/internal/infrastructure/jwt"
 	"github.com/example/banking-service/internal/transport/http/handlers"
 	"github.com/example/banking-service/internal/transport/http/middleware"
@@ -19,6 +20,9 @@ func New(
 	cardHandler *handlers.CardHandler,
 	creditHandler *handlers.CreditHandler,
 	analyticsHandler *handlers.AnalyticsHandler,
+	mfaHandler *handlers.MFAHandler,
+	adminHandler *handlers.AdminHandler,
+	mfaVerifier middleware.MFAVerifier,
 	jwtManager *jwt.Manager,
 	log *logrus.Logger,
 ) http.Handler {
@@ -45,18 +49,34 @@ func New(
 	protected.HandleFunc("/accounts/{accountId}/withdraw", accountHandler.Withdraw).Methods(http.MethodPost)
 	protected.HandleFunc("/accounts/{accountId}/predict", analyticsHandler.PredictBalance).Methods(http.MethodGet)
 
-	protected.HandleFunc("/transfer", transferHandler.Transfer).Methods(http.MethodPost)
+	protected.Handle("/transfer",
+		middleware.RequireMFA(mfaVerifier, domain.MFAPurposeTransfer)(http.HandlerFunc(transferHandler.Transfer)),
+	).Methods(http.MethodPost)
 
 	protected.HandleFunc("/cards", cardHandler.Issue).Methods(http.MethodPost)
 	protected.HandleFunc("/cards", cardHandler.List).Methods(http.MethodGet)
 	protected.HandleFunc("/cards/{cardId}", cardHandler.Details).Methods(http.MethodGet)
-	protected.HandleFunc("/cards/{cardId}/pay", cardHandler.Pay).Methods(http.MethodPost)
+	protected.Handle("/cards/{cardId}/pay",
+		middleware.RequireMFA(mfaVerifier, domain.MFAPurposeCardPayment)(http.HandlerFunc(cardHandler.Pay)),
+	).Methods(http.MethodPost)
 
-	protected.HandleFunc("/credits", creditHandler.Issue).Methods(http.MethodPost)
+	protected.Handle("/credits",
+		middleware.RequireMFA(mfaVerifier, domain.MFAPurposeCreditIssue)(http.HandlerFunc(creditHandler.Issue)),
+	).Methods(http.MethodPost)
 	protected.HandleFunc("/credits", creditHandler.List).Methods(http.MethodGet)
 	protected.HandleFunc("/credits/{creditId}/schedule", creditHandler.Schedule).Methods(http.MethodGet)
 
 	protected.HandleFunc("/analytics", analyticsHandler.GetAnalytics).Methods(http.MethodGet)
+
+	protected.HandleFunc("/mfa/challenges", mfaHandler.CreateChallenge).Methods(http.MethodPost)
+	protected.HandleFunc("/mfa/challenges/{challengeId}/verify", mfaHandler.VerifyChallenge).Methods(http.MethodPost)
+
+	admin := protected.PathPrefix("/admin").Subrouter()
+	admin.Use(middleware.RequireRole("admin"))
+	admin.HandleFunc("/users", adminHandler.ListUsers).Methods(http.MethodGet)
+	admin.Handle("/accounts/{accountId}/block",
+		middleware.RequireMFA(mfaVerifier, domain.MFAPurposeAccountBlock)(http.HandlerFunc(adminHandler.BlockAccount)),
+	).Methods(http.MethodPost)
 
 	return r
 }
