@@ -1,27 +1,55 @@
-version: "3.9"
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: banking-postgres
+    environment:
+      POSTGRES_DB: banking_service
+      POSTGRES_USER: banking_user
+      POSTGRES_PASSWORD: banking_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - banking_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking_user -d banking_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    working_dir: /app
+      args:
+        APP_CMD: api
+    container_name: banking-api
+    env_file:
+      - ../.env.example
     environment:
-      APP_ADDR: ":8080"
+      DATABASE_URL: postgres://banking_user:banking_password@postgres:5432/banking_service?sslmode=disable
+      APP_PORT: 8080
+      LOG_LEVEL: debug
     ports:
-      - "8080:8080"
+      - "8085:8080"
     depends_on:
-      - db
+      postgres:
+        condition: service_healthy
 
-  db:
-    image: postgres:17
+  scheduler:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_CMD: scheduler
+    container_name: banking-scheduler
+    env_file:
+      - ../.env.example
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: banking
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      DATABASE_URL: postgres://banking_user:banking_password@postgres:5432/banking_service?sslmode=disable
+      LOG_LEVEL: debug
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
-  pgdata: {}
+  banking_postgres_data:

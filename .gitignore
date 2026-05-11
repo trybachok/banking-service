@@ -24,3 +24,7 @@ coverage.out
 # OS
 .DS_Store
 summary.md
+
+# Go build artifacts
+/api
+/scheduler
